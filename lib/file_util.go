@@ -31,17 +31,19 @@ func FileRead(done <-chan struct{}, path string) (<-chan DataBlock, <-chan error
 		}
 		for id := 0; ; id++ {
 			buf := make([]byte, Bufsize)
-			data := DataBlock{id: id, data: buf}
-			data.size, err = f.Read(data.data)
-			if err != nil && err == io.EOF {
+			size, readError := f.Read(buf)
+			data := DataBlock{id: id, size: size, data: buf[0:size]}
+			if readError != nil && readError == io.EOF {
 				datas <- data
+				err = nil
 				break
-			} else if err != nil {
-				errc <- err
+			} else if readError != nil {
+				errc <- readError
 				return
 			}
 			datas <- data
 		}
+		errc <- err
 	}()
 	return datas, errc
 }

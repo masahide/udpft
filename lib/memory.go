@@ -1,5 +1,7 @@
 package lib
 
+import "log"
+
 var memoryBuf map[int]DataBlock
 
 type DataQueue struct {
@@ -10,7 +12,10 @@ type DataQueue struct {
 func FileToMemory(done chan struct{}, path string, queue chan<- DataQueue, end <-chan int) <-chan error {
 	datas, errc := FileRead(done, path)
 
+	memoryBuf = make(map[int]DataBlock)
+
 	go func() {
+		seq := 0
 		for {
 			select {
 			case data, ok := <-datas:
@@ -18,7 +23,8 @@ func FileToMemory(done chan struct{}, path string, queue chan<- DataQueue, end <
 					datas = nil
 				} else {
 					memoryBuf[data.id] = data
-					memoryToQueue(queue, data.id)
+					log.Printf("toMemory: %v, size: %v", data.id, len(data.data))
+					seq = memoryToQueue(seq, queue, data.id)
 				}
 			case endID, ok := <-end:
 				if !ok {
@@ -27,10 +33,13 @@ func FileToMemory(done chan struct{}, path string, queue chan<- DataQueue, end <
 					delete(memoryBuf, endID)
 				}
 			case <-done:
+				close(queue)
 				return
 			}
 			if datas == nil && end == nil {
-				break
+				log.Printf("seq:%v", seq)
+				close(queue)
+				return
 			}
 		}
 	}()
@@ -40,9 +49,8 @@ func FileToMemory(done chan struct{}, path string, queue chan<- DataQueue, end <
 
 const SendSize = 1450
 
-func memoryToQueue(queue chan<- DataQueue, dataId int) {
+func memoryToQueue(seq int, queue chan<- DataQueue, dataId int) int {
 	size := memoryBuf[dataId].size
-	seq := 0
 	for current := 0; current < size; current += SendSize {
 		next := current + SendSize
 		if next > size {
@@ -53,5 +61,6 @@ func memoryToQueue(queue chan<- DataQueue, dataId int) {
 		queue <- DataQueue{Seq: seq, Data: sendBuf}
 		seq++
 	}
+	return seq
 
 }

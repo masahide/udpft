@@ -37,7 +37,7 @@ func main() {
 		return
 	}
 
-	if flag.NArg() < 3 {
+	if flag.NArg() < 1 {
 		fmt.Printf("Usage:\n %s [options] <filePath>\n", path.Base(os.Args[0]))
 		flag.PrintDefaults()
 		os.Exit(1)
@@ -52,13 +52,13 @@ func main() {
 	defer close(done)
 
 	// Start workers
-	dq := make(chan lib.DataQueue, 100)
+	taskQueue := make(chan lib.DataQueue, 100)
 	results := make(chan error)
 	var wg sync.WaitGroup
 	wg.Add(workNum)
 	for i := 0; i < workNum; i++ {
 		go func() {
-			lib.SendWorker(fmt.Sprintf("out%02d.dat", i), dq, results)
+			lib.SendWorker(fmt.Sprintf("out%02d.dat", i), taskQueue, results)
 			wg.Done()
 		}()
 	}
@@ -70,11 +70,12 @@ func main() {
 	}()
 
 	end := make(chan int)
-	errc := lib.FileToMemory(done, cpPath, dq, end)
+	errc := lib.FileToMemory(done, cpPath, taskQueue, end)
+	close(end) // TODO: not implement
 
 	// Merge results
 	for result := range results {
-		log.Printf("%v", result)
+		log.Printf("result: %v", result)
 	}
 
 	// Check whether the work failed.
