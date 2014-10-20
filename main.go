@@ -57,8 +57,9 @@ func main() {
 	var wg sync.WaitGroup
 	wg.Add(workNum)
 	for i := 0; i < workNum; i++ {
+		to := fmt.Sprintf("out%02d.dat", i)
 		go func() {
-			lib.SendWorker(fmt.Sprintf("out%02d.dat", i), taskQueue, results)
+			lib.SendWorker(to, taskQueue, results)
 			wg.Done()
 		}()
 	}
